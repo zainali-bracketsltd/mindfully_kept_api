@@ -1,5 +1,6 @@
 const express = require('express')
 const { jwt, twiml } = require('twilio')
+const { v4: uuid } = require('uuid')
 
 const Communication = require('./communication')
 
@@ -12,7 +13,9 @@ const createRouter = io => {
 
   router.get('/token/:userId', (req, res) => {
     try {
-      const { userId } = req.params
+      let { userId } = req.params
+
+      userId = `${userId}-${uuid()}`
 
       const accessToken = new jwt.AccessToken(
         process.env.TWILIO_ACCOUNT_SID,
