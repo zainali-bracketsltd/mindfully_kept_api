@@ -1,6 +1,12 @@
 const express = require('express')
-const { jwt, twiml } = require('twilio')
+const twilio = require('twilio')
+const { jwt, twiml } = twilio
 const { v4: uuid } = require('uuid')
+
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+)
 
 const Communication = require('./communication')
 
@@ -119,6 +125,42 @@ const createRouter = io => {
     console.log('*** callback ***', req.body)
   })
 
+  router.post('/sms', async (req, res) => {
+    try {
+      const { message, to } = req.body
+
+      const smsSent = await twilioClient.messages.create({
+        body: message,
+        messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID,
+        to
+      })
+
+      console.log({ smsSent })
+
+      let newSMS = {
+        direction: 'OUTBOUND',
+        customerPhone: to,
+        _messageSid: smsSent.sid,
+        status: smsSent.status
+      }
+
+      newSMS = await Communication.findOneAndUpdate(
+        { _messageSid: newSMS._messageSid },
+        newSMS,
+        { upsert: true, new: true }
+      ).lean()
+
+      res.status(201).json({
+        message: `SUCCESS: sms ${newSMS.status}.`,
+        newSMS
+      })
+    } catch (error) {
+      console.error(error)
+
+      res.status(500).json({ message: 'Internal Server Error' })
+    }
+  })
+
   router.post('/incoming_sms', async (req, res) => {
     res.status(200).send()
 
@@ -128,8 +170,8 @@ const createRouter = io => {
       console.log('*** sms received ***', sms)
 
       let newSMS = {
-        _sender: sms.From,
-        _receiver: sms.To,
+        direction: 'INBOUND',
+        customerPhone: sms.From,
         _messageSid: sms.MessageSid,
         status: sms.status
       }
@@ -141,6 +183,48 @@ const createRouter = io => {
       ).lean()
 
       io.to('mindfully_kept').emit('INCOMING_SMS', newSMS)
+    } catch (error) {
+      console.error(error)
+
+      res.status(500).json({ message: 'Internal Server Error' })
+    }
+  })
+
+  router.get('/customers', async (req, res) => {
+    try {
+      const aggregationPipeline = [
+        {
+          $group: {
+            _id: '$customerPhone'
+          }
+        }
+      ]
+
+      const customers = await Communication.aggregate(aggregationPipeline)
+
+      res.status(200).json({
+        message: 'SUCCESS: customers fetched!',
+        data: customers.map(c => c._id)
+      })
+    } catch (error) {
+      console.error(error)
+
+      res.status(500).json({ message: 'Internal Server Error' })
+    }
+  })
+
+  router.get('/sms/:customerPhone', async (req, res) => {
+    try {
+      const { customerPhone } = req.params
+
+      console.log({ customerPhone })
+
+      const messages = await Communication.find({ customerPhone })
+
+      res.status(200).json({
+        message: 'SUCCESS: messages fetched!',
+        data: messages
+      })
     } catch (error) {
       console.error(error)
 
@@ -162,13 +246,18 @@ const createRouter = io => {
     }
   })
 
-  router.post('/sms_callback', (req, res) => {
+  router.post('/sms_callback', async (req, res) => {
     res.status(200).send()
 
     try {
       const sms = req.body
 
       console.log('*** sms callback ***', sms)
+
+      await Communication.findOneAndUpdate(
+        { _messageSid: sms._messageSid },
+        { status: sms.status }
+      )
     } catch (error) {
       console.error(error)
 

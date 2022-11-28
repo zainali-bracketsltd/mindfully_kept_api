@@ -18,6 +18,10 @@ io.on('connection', socket => {
   socket.join('mindfully_kept')
 })
 
+const { connectDB } = require('./connectDB')
+
+connectDB()
+
 const cors = require('cors')
 const morgan = require('morgan')
 const PORT = 9000

@@ -2,8 +2,8 @@ const mongoose = require('mongoose')
 
 const communicationSchema = new mongoose.Schema(
   {
-    _sender: String,
-    _receiver: String,
+    direction: String,
+    customerPhone: String,
     _messageSid: String,
     status: String
   },

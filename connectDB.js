@@ -2,15 +2,14 @@ const mongoose = require('mongoose')
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(
-      'mongodb+srv://mindfully-kept-api:<password>@mindfully-kept.hfyh5wj.mongodb.net/?retryWrites=true&w=majority',
-      {
-        useCreateIndex: true,
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        useFindAndModify: false
-      }
-    )
+    const dbName = 'Mindfully_Kept'
+
+    const connectionURI = `mongodb+srv://${process.env.MONGODB_USERNAME.trim()}:${process.env.MONGODB_PASSWORD.trim()}@mindfully-kept.hfyh5wj.mongodb.net/${dbName}?retryWrites=true&w=majority`
+
+    mongoose.connect(connectionURI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    })
   } catch (error) {
     console.log(error)
 
